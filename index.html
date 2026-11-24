@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Планировщик документов — личный трекер</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#ffffff; --text:#151a20; --muted:#586472; --line:#dbe2ea;
+    --accent:#1a4fa0; --accent-soft:#e8eefb; --accent-ink:#123a78;
+    --ok:#1c6b3a; --ok-soft:#e5f3eb;
+    --warn:#8a5300; --warn-soft:#fdf1da;
+    --danger:#a3231b; --danger-soft:#fdebea;
+    --lock:#4a5563; --lock-soft:#eceff3;
+    --radius:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#11161c; --card:#1a2027; --text:#e9edf2; --muted:#a4afbb; --line:#2c3641;
+      --accent:#87afea; --accent-soft:#1c2a3d; --accent-ink:#cfe0ff;
+      --ok:#84cba1; --ok-soft:#152a20;
+      --warn:#e6bb69; --warn-soft:#2d2516;
+      --danger:#f29086; --danger-soft:#2f1b19;
+      --lock:#b6c0cc; --lock-soft:#232b34;
+    }
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+  header.top{background:var(--card);border-bottom:1px solid var(--line);padding:22px 0 18px}
+  h1{font-size:clamp(22px,3.2vw,30px);margin:0 0 6px;line-height:1.2}
+  .sub{margin:0;color:var(--muted);max-width:70ch}
+  .today{margin:10px 0 0;font-size:14px;color:var(--muted)}
+  main{padding:22px 0 60px}
+  section{margin:0 0 30px}
+  h2{font-size:clamp(18px,2.4vw,22px);margin:0 0 6px}
+  h3{margin:0;font-size:17px;line-height:1.35}
+  .hint{color:var(--muted);font-size:14px;margin:0 0 14px;max-width:80ch}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+
+  /* ---------- key dates ---------- */
+  .dates{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));margin-bottom:14px}
+  .date-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+  .date-card label{display:block;font-weight:600;font-size:14px;margin-bottom:8px}
+  .date-card input[type=date]{
+    width:100%;padding:9px 10px;font:inherit;color:var(--text);
+    background:var(--bg);border:1px solid var(--line);border-radius:10px;
+  }
+  .date-card .note{font-size:12.5px;color:var(--muted);margin:7px 0 0}
+  .count{display:inline-block;margin-top:9px;font-size:13.5px;font-weight:600;padding:3px 9px;border-radius:999px}
+  .count.muted{background:var(--lock-soft);color:var(--lock)}
+  .count.ok{background:var(--ok-soft);color:var(--ok)}
+  .count.warn{background:var(--warn-soft);color:var(--warn)}
+  .count.danger{background:var(--danger-soft);color:var(--danger)}
+
+  .derived{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+  .derived .item{border:1px dashed var(--line);border-radius:12px;padding:11px 13px;background:var(--card)}
+  .derived .item .k{font-size:13px;color:var(--muted);margin:0 0 2px}
+  .derived .item .v{font-weight:650;margin:0 0 4px}
+  .derived .item .r{font-size:13px;color:var(--muted);margin:0}
+
+  details.settings{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px}
+  details.settings summary{cursor:pointer;font-weight:600;font-size:14.5px}
+  .settings-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));margin-top:12px}
+  .settings-grid label{font-size:13.5px;font-weight:600;display:block;margin-bottom:5px}
+  .settings-grid input{width:100%;padding:8px 10px;font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:9px}
+  .settings-grid .n{font-size:12px;color:var(--muted);margin:5px 0 0}
+
+  /* ---------- warnings ---------- */
+  .warn-list{display:grid;gap:9px;margin:0;padding:0;list-style:none}
+  .warn-item{display:flex;gap:10px;align-items:flex-start;border-radius:11px;padding:11px 13px;font-size:14.5px;border:1px solid transparent}
+  .warn-item .ic{flex:0 0 auto;font-size:15px;line-height:1.4}
+  .warn-item.danger{background:var(--danger-soft);color:var(--danger);border-color:var(--danger)}
+  .warn-item.warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+  .warn-item.info{background:var(--accent-soft);color:var(--accent-ink);border-color:var(--accent)}
+  .warn-item.lock{background:var(--lock-soft);color:var(--lock);border-color:var(--line)}
+  .warn-empty{color:var(--muted);font-size:14.5px;margin:0}
+
+  /* ---------- toolbar ---------- */
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+  .toolbar .spacer{flex:1 1 auto}
+  .btn{
+    font:inherit;font-size:14.5px;font-weight:600;cursor:pointer;
+    padding:9px 14px;border-radius:10px;border:1px solid var(--line);
+    background:var(--card);color:var(--text);
+  }
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{filter:brightness(1.08);color:#fff}
+  .btn.danger{color:var(--danger);border-color:var(--danger)}
+  .btn.small{padding:6px 11px;font-size:13.5px}
+  .btn:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible{
+    outline:3px solid var(--accent); outline-offset:2px;
+  }
+  .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}
+  .filters label{font-size:13.5px;color:var(--muted)}
+  .filters select,.filters input{
+    font:inherit;font-size:14px;padding:8px 10px;border-radius:9px;border:1px solid var(--line);
+    background:var(--card);color:var(--text);max-width:100%;
+  }
+  .filters input[type=search]{min-width:170px;flex:1 1 170px}
+
+  .progress-wrap{margin:0 0 16px}
+  .progress{height:9px;background:var(--lock-soft);border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+  .progress .bar{height:100%;background:var(--ok);width:0%;transition:width .25s ease}
+  .progress-label{font-size:13.5px;color:var(--muted);margin:6px 0 0}
+  .summary{font-size:14px;color:var(--muted);margin:0 0 14px}
+
+  /* ---------- tasks ---------- */
+  .task-list{display:grid;gap:10px}
+  .task{
+    background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);
+    border-radius:12px;padding:13px 14px;display:flex;gap:12px;align-items:flex-start;
+  }
+  .task.is-overdue{border-left-color:var(--danger)}
+  .task.is-soon{border-left-color:var(--warn)}
+  .task.is-done{opacity:.72;border-left-color:var(--ok)}
+  .task .chk{flex:0 0 auto;padding-top:2px}
+  .task .chk input{width:22px;height:22px;cursor:pointer;accent-color:var(--ok)}
+  .task-body{flex:1 1 auto;min-width:0}
+  .task.is-done h3{text-decoration:line-through;text-decoration-thickness:1px;color:var(--muted)}
+  .meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:7px 0 0}
+  .badge{font-size:12px;font-weight:650;padding:2px 8px;border-radius:999px;background:var(--lock-soft);color:var(--lock);white-space:nowrap}
+  .badge.cat{background:var(--accent-soft);color:var(--accent-ink)}
+  .badge.prio-high{background:var(--danger-soft);color:var(--danger)}
+  .badge.prio-normal{background:var(--lock-soft);color:var(--lock)}
+  .badge.prio-low{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .badge.st-done{background:var(--ok-soft);color:var(--ok)}
+  .badge.st-overdue{background:var(--danger-soft);color:var(--danger)}
+  .badge.st-soon{background:var(--warn-soft);color:var(--warn)}
+  .badge.st-plan{background:var(--accent-soft);color:var(--accent-ink)}
+  .badge.st-blocked{background:transparent;color:var(--muted);border:1px dashed var(--line)}
+  .badge.st-nodate{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .due{font-size:13.5px;color:var(--muted)}
+  .due b{color:var(--text)}
+  .due.overdue{color:var(--danger);font-weight:600}
+  .due.soon{color:var(--warn);font-weight:600}
+  .notes{margin:8px 0 0;font-size:14px;color:var(--muted);max-width:80ch}
+  .blocked-note{margin:8px 0 0;font-size:13.5px;color:var(--warn);background:var(--warn-soft);border-radius:9px;padding:7px 10px}
+  .task-actions{flex:0 0 auto;display:flex;flex-direction:column;gap:6px}
+  @media (max-width:600px){
+    .task{flex-wrap:wrap}
+    .task-actions{flex-direction:row;width:100%;justify-content:flex-end}
+  }
+  .empty{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:18px;color:var(--muted);font-size:14.5px}
+
+  /* ---------- sources ---------- */
+  .sources ul{margin:0;padding-left:20px}
+  .sources li{margin:0 0 9px;font-size:14.5px}
+  .sources a{color:var(--accent);word-break:break-word}
+  .disclaimer{margin:14px 0 0;background:var(--warn-soft);border:1px solid var(--warn);color:var(--warn);border-radius:12px;padding:12px 14px;font-size:14px}
+  footer{color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:14px}
+  .storage-warn{background:var(--danger-soft);border:1px solid var(--danger);color:var(--danger);border-radius:12px;padding:12px 14px;font-size:14px;margin:0 0 16px}
+
+  /* ---------- dialog ---------- */
+  dialog{
+    border:1px solid var(--line);border-radius:16px;padding:0;background:var(--card);color:var(--text);
+    width:min(560px,94vw);box-shadow:0 18px 50px rgba(0,0,0,.28);
+  }
+  dialog::backdrop{background:rgba(10,14,20,.55)}
+  .dlg-head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .dlg-head h2{margin:0;font-size:18px}
+  .dlg-body{padding:16px 18px;display:grid;gap:12px;max-height:70vh;overflow:auto}
+  .field label{display:block;font-size:13.5px;font-weight:650;margin-bottom:5px}
+  .field input,.field select,.field textarea{
+    width:100%;padding:9px 10px;font:inherit;color:var(--text);background:var(--bg);
+    border:1px solid var(--line);border-radius:10px;
+  }
+  .field textarea{min-height:88px;resize:vertical}
+  .field .n{font-size:12.5px;color:var(--muted);margin:5px 0 0}
+  .row2{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+  @media (max-width:520px){.row2{grid-template-columns:1fr}}
+  .dlg-foot{padding:14px 18px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .dlg-foot .left{margin-right:auto}
+
+  .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+  @media print{
+    body{background:#fff;color:#000;font-size:12pt}
+    .no-print,dialog,.storage-warn{display:none!important}
+    header.top{border:0;padding:0 0 12px}
+    .wrap{max-width:none;padding:0}
+    section{margin-bottom:18px;break-inside:auto}
+    .date-card,.task,.panel,.derived .item,details.settings{break-inside:avoid;border-color:#999;box-shadow:none}
+    .date-card input,.settings-grid input{border:0;background:none;padding:0;font-weight:600}
+    details.settings{display:block}
+    details.settings *{display:none}
+    details.settings summary{display:block}
+    .task-actions,.filters,.toolbar{display:none!important}
+    a{color:#000}
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <h1>Планировщик документов</h1>
+    <p class="sub">Личный трекер сроков: воинский учёт, меддокументы, паспорт, водительские права, регистрация в Минске, Карта поляка и польская виза типа&nbsp;D.</p>
+    <p class="today">Сегодня: <strong id="todayLabel">—</strong> · Данные хранятся только в этом браузере и никуда не отправляются.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="storageWarn" class="storage-warn" hidden role="alert"></div>
+
+  <section aria-labelledby="dates-h">
+    <h2 id="dates-h">Ключевые даты</h2>
+    <p class="hint">Меняйте даты — отсчёты и связанные сроки пересчитываются сразу. Пустое поле означает «срок ещё не известен».</p>
+    <div class="dates" id="dateCards"></div>
+    <h3 style="margin:22px 0 10px;font-size:16px">Расчётные сроки</h3>
+    <div class="derived" id="derivedList"></div>
+
+    <details class="settings">
+      <summary>Настройки расчёта (запасы времени)</summary>
+      <div class="settings-grid">
+        <div>
+          <label for="setReview">Рассмотрение визы, дней</label>
+          <input type="number" id="setReview" min="1" max="365" step="1">
+          <p class="n">По странице консульства — до 60 дней.</p>
+        </div>
+        <div>
+          <label for="setBuffer">Запас на запись и логистику, дней</label>
+          <input type="number" id="setBuffer" min="0" max="365" step="1">
+          <p class="n">Добавляется к сроку рассмотрения при расчёте крайней даты подачи.</p>
+        </div>
+        <div>
+          <label for="setPassportLead">Паспорт: запас до подачи на визу, дней</label>
+          <input type="number" id="setPassportLead" min="0" max="365" step="1">
+          <p class="n">Сколько времени нужно на изготовление нового паспорта до визы.</p>
+        </div>
+        <div>
+          <label for="setLicenseLead">Права: запас до окончания, дней</label>
+          <input type="number" id="setLicenseLead" min="0" max="365" step="1">
+          <p class="n">Когда желательно пройти водительскую медкомиссию.</p>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section aria-labelledby="warn-h">
+    <h2 id="warn-h">Зависимости и предупреждения</h2>
+    <p class="hint">Список строится автоматически по вашим задачам и датам. Это подсказки, а не юридические требования.</p>
+    <ul class="warn-list" id="warnList"></ul>
+  </section>
+
+  <section aria-labelledby="tasks-h">
+    <h2 id="tasks-h">Задачи</h2>
+    <p class="hint">Сортировка по сроку: сначала просроченные и ближайшие, затем задачи без срока, в конце выполненные.</p>
+
+    <div class="toolbar no-print">
+      <button class="btn primary" id="addBtn" type="button">+ Добавить задачу</button>
+      <span class="spacer"></span>
+      <button class="btn" id="exportBtn" type="button">Экспорт JSON</button>
+      <button class="btn" id="importBtn" type="button">Импорт JSON</button>
+      <button class="btn" id="printBtn" type="button">Печать</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
+
+    <div class="progress-wrap">
+      <div class="progress" role="progressbar" aria-labelledby="progressLabel" aria-valuemin="0" aria-valuemax="100" id="progressBar">
+        <div class="bar" id="progressFill"></div>
+      </div>
+      <p class="progress-label" id="progressLabel">—</p>
+    </div>
+    <p class="summary" id="summary"></p>
+
+    <div class="filters no-print">
+      <label for="fCat">Категория</label>
+      <select id="fCat"><option value="">все</option></select>
+      <label for="fStatus">Статус</label>
+      <select id="fStatus">
+        <option value="all">все</option>
+        <option value="active" selected>активные</option>
+        <option value="done">выполненные</option>
+        <option value="blocked">ожидают зависимостей</option>
+        <option value="nodate">без срока</option>
+      </select>
+      <input type="search" id="fSearch" placeholder="Поиск по названию и заметкам" aria-label="Поиск по задачам">
+    </div>
+
+    <div class="task-list" id="taskList"></div>
+  </section>
+
+  <section class="sources" aria-labelledby="src-h">
+    <h2 id="src-h">Официальные источники</h2>
+    <p class="hint">Ссылки открываются в новой вкладке. Проверяйте актуальность перед подачей документов.</p>
+    <div class="panel">
+      <ul>
+        <li>Закон Республики Беларусь «О воинской обязанности и воинской службе» (в т. ч. ст. 30 о призывном возрасте 18–27 лет): <a href="https://pravo.by/document?guid=3871&amp;p0=v19201914" target="_blank" rel="noopener noreferrer">pravo.by/document?guid=3871&amp;p0=v19201914</a></li>
+        <li>Правила регистрационного учёта (отметка о воинском учёте по новому месту жительства): <a href="https://pravo.by/document?guid=3871&amp;p0=W21023021" target="_blank" rel="noopener noreferrer">pravo.by/document?guid=3871&amp;p0=W21023021</a></li>
+        <li>Перечень административных процедур (в т. ч. паспорт и обмен водительского удостоверения): <a href="https://pravo.by/document?guid=3871&amp;p0=p31000200" target="_blank" rel="noopener noreferrer">pravo.by/document?guid=3871&amp;p0=p31000200</a></li>
+        <li>Карта поляка — общая информация (продление не ранее чем за 6 месяцев): <a href="https://www.gov.pl/web/bialorus/karta-polaka-informacje-ogolne" target="_blank" rel="noopener noreferrer">gov.pl/web/bialorus/karta-polaka-informacje-ogolne</a></li>
+        <li>Национальная виза типа D: <a href="https://www.gov.pl/web/bialorus/wiza-typu-d" target="_blank" rel="noopener noreferrer">gov.pl/web/bialorus/wiza-typu-d</a></li>
+      </ul>
+      <p class="disclaimer"><strong>Важно.</strong> Страница — личный планировщик, а не юридическая консультация. Призывной возраст 18–27 лет не означает автоматически, что у вас нет обязанностей по воинскому учёту: статус военнообязанного, необходимость военного билета и медкомиссии подтверждает военкомат. Требования к регистрации и к пакету документов уточняйте в ОГиМ и военкомате. Срок действия визы до одного года не гарантирован, паспорт до марта 2028 года не обязательно препятствует визе — это оценивает консульство.</p>
+    </div>
+  </section>
+
+  <footer>
+    Один файл, работает офлайн, без сервера. Данные — в localStorage этого браузера: очистка данных сайта или режим инкогнито их удалят, поэтому делайте резервную копию через «Экспорт JSON».
+  </footer>
+</main>
+
+<dialog id="taskDialog" aria-labelledby="dlgTitle">
+  <form id="taskForm" novalidate>
+    <div class="dlg-head">
+      <h2 id="dlgTitle">Новая задача</h2>
+      <button class="btn small no-print" type="button" id="dlgClose" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="dlg-body">
+      <div class="field">
+        <label for="fTitle">Название задачи</label>
+        <input type="text" id="fTitle" name="title" maxlength="200" required>
+        <p class="n" id="titleError" hidden style="color:var(--danger)">Укажите название.</p>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="fCategory">Категория</label>
+          <select id="fCategory" name="category"></select>
+        </div>
+        <div class="field">
+          <label for="fPriority">Приоритет</label>
+          <select id="fPriority" name="priority">
+            <option value="high">Высокий</option>
+            <option value="normal" selected>Обычный</option>
+            <option value="low">Низкий</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="fDue">Срок (необязательно)</label>
+        <input type="date" id="fDue" name="due">
+        <p class="n" id="dueHint">Пустое поле = срок уточняется. Для части задач срок считается автоматически из ключевых дат.</p>
+      </div>
+      <div class="field">
+        <label for="fNotes">Заметки</label>
+        <textarea id="fNotes" name="notes" maxlength="2000" placeholder="Что уточнить, к кому обратиться, что взять с собой"></textarea>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn danger left" type="button" id="dlgDelete" hidden>Удалить</button>
+      <button class="btn" type="button" id="dlgCancel">Отмена</button>
+      <button class="btn primary" type="submit">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function(){
+  "use strict";
+
+  var KEY = "document_planner_v1";
+  var MONTHS = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+
+  var CATEGORIES = [
+    {id:"military",     label:"Военкомат / воинский учёт"},
+    {id:"med",          label:"Меддокументы"},
+    {id:"passport",     label:"Паспорт"},
+    {id:"license",      label:"Водительские права"},
+    {id:"registration", label:"Регистрация в Минске"},
+    {id:"karta",        label:"Карта поляка"},
+    {id:"visa",         label:"Польская виза / поездка"}
+  ];
+  var CAT_LABEL = {};
+  CATEGORIES.forEach(function(c){ CAT_LABEL[c.id] = c.label; });
+
+  var PRIO = { high:"Высокий", normal:"Обычный", low:"Низкий" };
+
+  var DEFAULT_DATES = { trip:"2027-08-01", passport:"2028-03-31", karta:"2027-12-31", license:"" };
+  var DEFAULT_SETTINGS = { reviewDays:60, bufferDays:30, passportLead:60, licenseLead:45 };
+
+  var DATE_FIELDS = [
+    { key:"trip",     label:"Поездка (ориентировочно)", note:"Даты редактируемые: поставьте свои, когда определитесь." },
+    { key:"passport", label:"Паспорт Беларуси действует до", note:"По вашим данным — до марта 2028 года." },
+    { key:"karta",    label:"Карта поляка действует до", note:"По вашим данным — до декабря 2027 года." },
+    { key:"license",  label:"Водительские права действуют до", note:"Точная дата пока неизвестна — введите, когда узнаете." }
+  ];
+
+  var storageOk = true;
+
+  // ---------- date helpers ----------
+  function parseISO(s){
+    if(!s || typeof s !== "string") return null;
+    var p = s.split("-");
+    if(p.length !== 3) return null;
+    var y = +p[0], m = +p[1], d = +p[2];
+    if(!y || !m || !d) return null;
+    var dt = new Date(Date.UTC(y, m-1, d));
+    if(dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m-1 || dt.getUTCDate() !== d) return null;
+    return dt;
+  }
+  function toISO(dt){
+    var m = dt.getUTCMonth()+1, d = dt.getUTCDate();
+    return dt.getUTCFullYear() + "-" + (m<10?"0":"") + m + "-" + (d<10?"0":"") + d;
+  }
+  function todayDate(){
+    var n = new Date();
+    return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()));
+  }
+  function todayISO(){ return toISO(todayDate()); }
+  function shiftDays(dt, n){ return new Date(dt.getTime() + n*86400000); }
+  function shiftMonths(dt, n){
+    var y = dt.getUTCFullYear(), m = dt.getUTCMonth()+n, day = dt.getUTCDate();
+    var last = new Date(Date.UTC(y, m+1, 0)).getUTCDate();
+    return new Date(Date.UTC(y, m, Math.min(day,last)));
+  }
+  function fmt(iso){
+    var d = parseISO(iso);
+    if(!d) return "—";
+    return d.getUTCDate() + " " + MONTHS[d.getUTCMonth()] + " " + d.getUTCFullYear();
+  }
+  function daysUntil(iso){
+    var d = parseISO(iso);
+    if(!d) return null;
+    return Math.round((d - todayDate()) / 86400000);
+  }
+  function plural(n, one, few, many){
+    var a = Math.abs(n) % 100, b = a % 10;
+    if(a > 10 && a < 20) return many;
+    if(b > 1 && b < 5) return few;
+    if(b === 1) return one;
+    return many;
+  }
+  function daysText(n){
+    return n + " " + plural(n, "день", "дня", "дней");
+  }
+  function countdown(iso){
+    var n = daysUntil(iso);
+    if(n === null) return { text:"срок не задан", cls:"muted" };
+    if(n === 0) return { text:"сегодня", cls:"danger" };
+    if(n === 1) return { text:"завтра", cls:"warn" };
+    if(n > 1) return { text:"через " + daysText(n), cls: n <= 30 ? "warn" : "ok" };
+    return { text:"просрочено на " + daysText(-n), cls:"danger" };
+  }
+
+  // ---------- derived ----------
+  function computeDerived(){
+    var st = state.settings, dt = state.dates;
+    var trip = parseISO(dt.trip), passport = parseISO(dt.passport),
+        karta = parseISO(dt.karta), license = parseISO(dt.license);
+    var out = { kartaWindow:"", visaLatest:"", passportLatest:"", licenseCommission:"" };
+    if(karta) out.kartaWindow = toISO(shiftMonths(karta, -6));
+    if(trip){
+      out.visaLatest = toISO(shiftDays(trip, -(Number(st.reviewDays) + Number(st.bufferDays))));
+      if(out.visaLatest) out.passportLatest = toISO(shiftDays(parseISO(out.visaLatest), -Number(st.passportLead)));
+    }
+    if(license) out.licenseCommission = toISO(shiftDays(license, -Number(st.licenseLead)));
+    return out;
+  }
+
+  // ---------- seed ----------
+  function seedTasks(){
+    return [
+      { id:"t1", title:"Связаться с военкоматом в Гродно", category:"military", priority:"high",
+        notes:"Узнать официальный статус воинского учёта, порядок получения военного билета или другого документа учёта, необходимость и порядок медкомиссии.", done:false, deps:[] },
+      { id:"t2", title:"Спросить военкомат о выписке из минской поликлиники", category:"military", priority:"high",
+        notes:"Уточнить, нужна ли выписка, какая форма и период, можно ли использовать документы из Гродно.", done:false, deps:["t1"] },
+      { id:"t3", title:"Уточнить в ОГиМ Минска требования к регистрации", category:"registration", priority:"high",
+        notes:"Какой документ воинского учёта нужен в моём случае, требования к жилью, порядок действий.", done:false, deps:[] },
+      { id:"t4", title:"Уточнить требования к замене паспорта в ОГиМ", category:"passport", priority:"normal",
+        notes:"Проверить, нужен ли документ воинского учёта при возрасте 32 года, сроки изготовления и госпошлину.", done:false, deps:[] },
+      { id:"t5", title:"Уточнить в ГАИ Гродно возможность обмена водительских прав", category:"license", priority:"normal",
+        notes:"Можно ли обменять по месту нынешнего проживания, какие документы и медсправка нужны.", done:false, deps:[] },
+      { id:"t6", title:"Пройти водительскую медкомиссию в Гродно", category:"med", priority:"normal",
+        notes:"Отдельная от военкомата процедура. Срок рассчитывается от даты окончания прав.", done:false, deps:["t5"], auto:"licenseCommission" },
+      { id:"t7", title:"Получить медицинскую выписку из поликлиники Минска", category:"med", priority:"normal",
+        notes:"Только если военкомат подтвердит необходимость. До этого не заказывать.", done:false, deps:["t2"] },
+      { id:"t8", title:"Пройти военную медкомиссию / обследования", category:"military", priority:"normal",
+        notes:"Если назначит военкомат. Водительская медкомиссия её не заменяет.", done:false, deps:["t1"] },
+      { id:"t9", title:"Получить военный билет или иной документ учёта и отметки", category:"military", priority:"high",
+        notes:"Если подтвердит военкомат. Уточнить, какой именно документ требуется для регистрации.", done:false, deps:["t1"] },
+      { id:"t10", title:"Обменять водительские права", category:"license", priority:"normal",
+        notes:"После уточнения перечня документов и прохождения водительской комиссии.", done:false, deps:["t5","t6"] },
+      { id:"t11", title:"Оформить регистрацию по месту жительства в Минске", category:"registration", priority:"high",
+        notes:"После выяснения требований по воинскому учёту и документов на жильё.", done:false, deps:["t3","t9"] },
+      { id:"t12", title:"Подать документы на новый паспорт", category:"passport", priority:"high",
+        notes:"Заранее, до подачи на визу. Точную дату согласовать с ответом ОГиМ.", done:false, deps:["t4"], auto:"passportLatest" },
+      { id:"t13", title:"Проверить запись и порядок продления Карты поляка", category:"karta", priority:"high",
+        notes:"Подача не ранее чем за 6 месяцев до окончания. Проверить запись и список документов ближе к окну подачи.", done:false, deps:[], auto:"kartaWindow" },
+      { id:"t14", title:"Проверить запись и документы для визы D по Карте поляка", category:"visa", priority:"normal",
+        notes:"Актуальный список документов, запись, консульский сбор. Проверять заранее.", done:false, deps:[] },
+      { id:"t15", title:"Подать заявление на визу с запасом до поездки", category:"visa", priority:"high",
+        notes:"Учитывает до 60 дней рассмотрения и возможное ожидание записи; запасы настраиваются выше.", done:false, deps:["t12","t14"], auto:"visaLatest" },
+      { id:"t16", title:"Проверить получение визы, срок её действия и даты поездки", category:"visa", priority:"normal",
+        notes:"До покупки невозвратных билетов.", done:false, deps:["t15"], auto:"trip" }
+    ];
+  }
+
+  // ---------- state ----------
+  var state;
+  try {
+    var raw = localStorage.getItem(KEY);
+    state = raw ? JSON.parse(raw) : null;
+  } catch(e){ storageOk = false; state = null; }
+
+  if(!state || typeof state !== "object") state = {};
+  if(!state.dates || typeof state.dates !== "object"){
+    state.dates = { trip:DEFAULT_DATES.trip, passport:DEFAULT_DATES.passport, karta:DEFAULT_DATES.karta, license:DEFAULT_DATES.license };
+  }
+  Object.keys(DEFAULT_DATES).forEach(function(k){
+    if(typeof state.dates[k] !== "string") state.dates[k] = "";
+  });
+  if(!state.settings || typeof state.settings !== "object") state.settings = {};
+  Object.keys(DEFAULT_SETTINGS).forEach(function(k){
+    var v = Number(state.settings[k]);
+    state.settings[k] = (isFinite(v) && v >= 0) ? v : DEFAULT_SETTINGS[k];
+  });
+  if(!Array.isArray(state.tasks) || state.tasks.length === 0) state.tasks = seedTasks();
+
+  function save(){
+    if(!storageOk) return;
+    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch(e){
+      storageOk = false;
+      renderStorageWarn();
+    }
+  }
+  function renderStorageWarn(){
+    var el = document.getElementById("storageWarn");
+    if(storageOk){ el.hidden = true; return; }
+    el.hidden = false;
+    el.textContent = "Не удалось сохранить данные в localStorage этого браузера: изменения не переживут закрытие страницы. Сделайте резервную копию через «Экспорт JSON».";
+  }
+
+  // ---------- selectors / esc ----------
+  function $(id){ return document.getElementById(id); }
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function taskById(id){
+    for(var i=0;i<state.tasks.length;i++){ if(state.tasks[i].id === id) return state.tasks[i]; }
+    return null;
+  }
+  function autoDate(field){
+    var d = computeDerived();
+    return d[field] || "";
+  }
+  function effectiveDue(t){
+    if(t.auto) return autoDate(t.auto);
+    return t.due || "";
+  }
+  function unmetDeps(t){
+    if(!t.deps || !t.deps.length) return [];
+    var res = [];
+    t.deps.forEach(function(id){
+      var d = taskById(id);
+      if(d && !d.done) res.push(d);
+    });
+    return res;
+  }
+
+  // ---------- render: today ----------
+  function renderToday(){
+    $("todayLabel").textContent = fmt(todayISO());
+  }
+
+  // ---------- render: dates ----------
+  function renderDates(){
+    var box = $("dateCards");
+    box.innerHTML = DATE_FIELDS.map(function(f){
+      var val = state.dates[f.key] || "";
+      var c = countdown(val);
+      return '<div class="date-card">' +
+        '<label for="date-' + f.key + '">' + esc(f.label) + '</label>' +
+        '<input type="date" id="date-' + f.key + '" data-date-key="' + f.key + '" value="' + esc(val) + '">' +
+        '<p class="note">' + esc(f.note) + '</p>' +
+        '<span class="count ' + c.cls + '">' + esc(c.text) + '</span>' +
+      '</div>';
+    }).join("");
+
+    var d = computeDerived();
+    var items = [];
+
+    if(d.kartaWindow){
+      items.push({ k:"Окно продления Карты поляка", v:"с " + fmt(d.kartaWindow), r:"Раньше этой даты не принимают; крайний срок — " + fmt(state.dates.karta) + ". " + countdown(d.kartaWindow).text + "." });
+    } else {
+      items.push({ k:"Окно продления Карты поляка", v:"не рассчитано", r:"Укажите дату окончания Карты поляка." });
+    }
+
+    if(d.visaLatest){
+      items.push({ k:"Подать на визу не позднее", v:fmt(d.visaLatest), r:state.settings.reviewDays + " дн. на рассмотрение + " + state.settings.bufferDays + " дн. запаса. " + countdown(d.visaLatest).text + "." });
+    } else {
+      items.push({ k:"Подать на визу не позднее", v:"не рассчитано", r:"Укажите дату поездки." });
+    }
+
+    if(d.passportLatest){
+      items.push({ k:"Подать на паспорт не позднее", v:fmt(d.passportLatest), r:"Чтобы новый паспорт был готов до подачи на визу (" + state.settings.passportLead + " дн. запаса). " + countdown(d.passportLatest).text + "." });
+    } else {
+      items.push({ k:"Подать на паспорт не позднее", v:"не рассчитано", r:"Нужны дата поездки и дата окончания паспорта." });
+    }
+
+    if(d.licenseCommission){
+      items.push({ k:"Водительская медкомиссия не позднее", v:fmt(d.licenseCommission), r:"За " + state.settings.licenseLead + " дн. до окончания прав. " + countdown(d.licenseCommission).text + "." });
+    } else {
+      items.push({ k:"Водительская медкомиссия не позднее", v:"не рассчитано", r:"Укажите дату окончания водительских прав." });
+    }
+
+    $("derivedList").innerHTML = items.map(function(it){
+      return '<div class="item"><p class="k">' + esc(it.k) + '</p><p class="v">' + esc(it.v) + '</p><p class="r">' + esc(it.r) + '</p></div>';
+    }).join("");
+
+    Array.prototype.forEach.call(box.querySelectorAll("input[data-date-key]"), function(inp){
+      inp.addEventListener("change", function(){
+        state.dates[inp.getAttribute("data-date-key")] = inp.value;
+        save(); renderAll();
+      });
+    });
+  }
+
+  // ---------- render: warnings ----------
+  function renderWarnings(){
+    var list = [];
+    var d = computeDerived();
+    var t15 = taskById("t15"), t13 = taskById("t13"), t12 = taskById("t12"), t11 = taskById("t11");
+
+    state.tasks.forEach(function(t){
+      if(t.done) return;
+      var misses = unmetDeps(t);
+      if(misses.length){
+        list.push({ level:"lock", ic:"⛓", html:"«" + esc(t.title) + "» — сначала: " + misses.map(function(m){ return "«" + esc(m.title) + "»"; }).join(", ") + "." });
+      }
+    });
+
+    if(t11 && !t11.done){
+      list.push({ level:"info", ic:"i", html:"Регистрация в Минске зависит от документа воинского учёта: сначала уточните требования в военкомате и ОГиМ, потом подавайте." });
+    }
+
+    if(!state.dates.license){
+      list.push({ level:"info", ic:"i", html:"Дата окончания водительских прав не указана — срок водительской медкомиссии не рассчитан. Введите её в блоке «Ключевые даты»." });
+    }
+    if(!state.dates.trip){
+      list.push({ level:"info", ic:"i", html:"Дата поездки не указана — крайний срок подачи на визу не рассчитан." });
+    }
+
+    if(d.visaLatest){
+      var leftVisa = daysUntil(d.visaLatest);
+      if(leftVisa < 0 && t15 && !t15.done){
+        list.push({ level:"danger", ic:"!", html:"Расчётный крайний срок подачи на визу (" + fmt(d.visaLatest) + ") уже прошёл, а заявление не отмечено как поданное. Пересчитайте даты или уточните сроки в консульстве." });
+      } else if(leftVisa >= 0 && leftVisa <= 45 && t15 && !t15.done){
+        list.push({ level:"warn", ic:"!", html:"До расчётного крайнего срока подачи на визу осталось " + daysText(leftVisa) + " (" + fmt(d.visaLatest) + "). Запись может быть занята — проверьте её сейчас." });
+      }
+    }
+
+    if(d.kartaWindow){
+      var leftK = daysUntil(d.kartaWindow);
+      if(leftK < 0 && t13 && !t13.done){
+        list.push({ level:"warn", ic:"!", html:"Окно продления Карты поляка открылось " + fmt(d.kartaWindow) + ", задача о записи ещё не выполнена." });
+      } else if(leftK >= 0 && leftK <= 60 && t13 && !t13.done){
+        list.push({ level:"warn", ic:"!", html:"Окно продления Карты поляка открывается " + fmt(d.kartaWindow) + " (" + countdown(d.kartaWindow).text + "). Проверьте запись заранее." });
+      }
+    }
+
+    if(d.passportLatest){
+      var leftP = daysUntil(d.passportLatest);
+      if(leftP < 0 && t12 && !t12.done){
+        list.push({ level:"danger", ic:"!", html:"Расчётный срок подачи на новый паспорт (" + fmt(d.passportLatest) + ") прошёл, а заявление не отмечено. Уточните сроки изготовления в ОГиМ." });
+      }
+    }
+
+    var passport = parseISO(state.dates.passport), trip = parseISO(state.dates.trip);
+    if(passport && trip){
+      var margin = Math.round((passport - trip) / 86400000);
+      if(margin < 180){
+        list.push({ level:"warn", ic:"!", html:"Паспорт истекает через " + daysText(margin > 0 ? margin : 0) + " после даты поездки. Это может ограничить возможный срок визы, но не доказывает отказ: требования проверяйте в консульстве. Новый паспорт заранее снижает риск." });
+      }
+    }
+
+    if(!list.length){
+      $("warnList").innerHTML = '<li class="warn-empty">Активных предупреждений нет: зависимости выполнены, сроки в порядке.</li>';
+      return;
+    }
+
+    $("warnList").innerHTML = list.map(function(w){
+      return '<li class="warn-item ' + w.level + '"><span class="ic" aria-hidden="true">' + w.ic + '</span><span>' + w.html + '</span></li>';
+    }).join("");
+  }
+
+  // ---------- render: tasks ----------
+  function statusOf(t){
+    var due = effectiveDue(t);
+    if(t.done) return { key:"done", label:"Выполнено", cls:"st-done" };
+    if(unmetDeps(t).length) return { key:"blocked", label:"Ожидает зависимостей", cls:"st-blocked" };
+    if(!due) return { key:"nodate", label:"Срок уточняется", cls:"st-nodate" };
+    var n = daysUntil(due);
+    if(n < 0) return { key:"overdue", label:"Просрочено", cls:"st-overdue" };
+    if(n <= 14) return { key:"soon", label:"Срочно", cls:"st-soon" };
+    return { key:"plan", label:"В плане", cls:"st-plan" };
+  }
+
+  function filteredSorted(){
+    var cat = $("fCat").value, stt = $("fStatus").value;
+    var q = ($("fSearch").value || "").trim().toLowerCase();
+    var arr = state.tasks.filter(function(t){
+      if(cat && t.category !== cat) return false;
+      var s = statusOf(t);
+      if(stt === "active" && t.done) return false;
+      if(stt === "done" && !t.done) return false;
+      if(stt === "blocked" && s.key !== "blocked") return false;
+      if(stt === "nodate" && (t.done || effectiveDue(t))) return false;
+      if(q){
+        var hay = (t.title + " " + (t.notes || "") + " " + (CAT_LABEL[t.category] || "")).toLowerCase();
+        if(hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+
+    function rank(t){
+      var due = effectiveDue(t);
+      if(t.done) return 3;
+      if(!due) return 2;
+      return 1;
+    }
+    arr.sort(function(a,b){
+      var ra = rank(a), rb = rank(b);
+      if(ra !== rb) return ra - rb;
+      var da = effectiveDue(a), db = effectiveDue(b);
+      if(da && db && da !== db) return da < db ? -1 : 1;
+      if(da && !db) return -1;
+      if(!da && db) return 1;
+      var p = { high:0, normal:1, low:2 };
+      var pa = p[a.priority] == null ? 1 : p[a.priority];
+      var pb = p[b.priority] == null ? 1 : p[b.priority];
+      if(pa !== pb) return pa - pb;
+      return String(a.title).localeCompare(String(b.title), "ru");
+    });
+    return arr;
+  }
+
+  function renderTasks(){
+    var arr = filteredSorted();
+    var box = $("taskList");
+
+    if(!arr.length){
+      box.innerHTML = '<p class="empty">Под текущие фильтры задач нет. Измените фильтры или добавьте задачу.</p>';
+    } else {
+      box.innerHTML = arr.map(function(t){
+        var s = statusOf(t);
+        var due = effectiveDue(t);
+        var c = countdown(due);
+        var cls = "task";
+        if(t.done) cls += " is-done";
+        else if(due && daysUntil(due) < 0) cls += " is-overdue";
+        else if(due && daysUntil(due) <= 14) cls += " is-soon";
+
+        var dueCls = "due";
+        if(!t.done && due){
+          var n = daysUntil(due);
+          if(n < 0) dueCls += " overdue"; else if(n <= 14) dueCls += " soon";
+        }
+        var dueHtml = due
+          ? '<span class="' + dueCls + '">Срок: <b>' + esc(fmt(due)) + '</b> · ' + esc(c.text) + '</span>'
+          : '<span class="due">Срок: уточнить</span>';
+
+        var misses = unmetDeps(t);
+        var blockedHtml = (!t.done && misses.length)
+          ? '<p class="blocked-note">Сначала: ' + misses.map(function(m){ return "«" + esc(m.title) + "»"; }).join(", ") + '</p>'
+          : "";
+
+        var autoBadge = (t.auto && due)
+          ? '<span class="badge" title="Считается из ключевых дат">авторасчёт</span>'
+          : "";
+
+        return '<article class="' + cls + '" data-id="' + esc(t.id) + '">' +
+          '<div class="chk"><label><input type="checkbox" data-toggle="' + esc(t.id) + '"' + (t.done ? " checked" : "") +
+            ' aria-label="Отметить задачу «' + esc(t.title) + '» выполненной"><span class="sr">выполнено</span></label></div>' +
+          '<div class="task-body">' +
+            '<h3>' + esc(t.title) + '</h3>' +
+            '<div class="meta">' +
+              '<span class="badge cat">' + esc(CAT_LABEL[t.category] || "Без категории") + '</span>' +
+              '<span class="badge prio-' + esc(t.priority || "normal") + '">' + esc(PRIO[t.priority] || "Обычный") + '</span>' +
+              '<span class="badge ' + s.cls + '">' + esc(s.label) + '</span>' +
+              autoBadge +
+              dueHtml +
+            '</div>' +
+            (t.notes ? '<p class="notes">' + esc(t.notes) + '</p>' : "") +
+            blockedHtml +
+          '</div>' +
+          '<div class="task-actions no-print">' +
+            '<button class="btn small" type="button" data-act="edit" data-id="' + esc(t.id) + '">Изменить</button>' +
+            '<button class="btn small danger" type="button" data-act="del" data-id="' + esc(t.id) + '">Удалить</button>' +
+          '</div>' +
+        '</article>';
+      }).join("");
+    }
+
+    renderProgress();
+    renderSummary();
+  }
+
+  function renderProgress(){
+    var total = state.tasks.length;
+    var done = state.tasks.filter(function(t){ return t.done; }).length;
+    var pct = total ? Math.round(done/total*100) : 0;
+    $("progressFill").style.width = pct + "%";
+    $("progressBar").setAttribute("aria-valuenow", String(pct));
+    $("progressLabel").textContent = "Выполнено " + done + " из " + total + " задач (" + pct + "%).";
+  }
+
+  function renderSummary(){
+    var active = 0, overdue = 0, nodate = 0, soon = 0;
+    state.tasks.forEach(function(t){
+      if(t.done) return;
+      active++;
+      var due = effectiveDue(t);
+      if(!due){ nodate++; return; }
+      var n = daysUntil(due);
+      if(n < 0) overdue++;
+      else if(n <= 14) soon++;
+    });
+    $("summary").textContent = "Активных: " + active + " · просрочено: " + overdue + " · в ближайшие 14 дней: " + soon + " · без срока: " + nodate + ".";
+  }
+
+  // ---------- dialog ----------
+  var editingId = null;
+
+  function fillCategorySelect(){
+    $("fCategory").innerHTML = CATEGORIES.map(function(c){
+      return '<option value="' + c.id + '">' + esc(c.label) + '</option>';
+    }).join("");
+    $("fCat").innerHTML = '<option value="">все</option>' + CATEGORIES.map(function(c){
+      return '<option value="' + c.id + '">' + esc(c.label) + '</option>';
+    }).join("");
+  }
+
+  function openDialog(id){
+    editingId = id || null;
+    var t = id ? taskById(id) : null;
+    $("dlgTitle").textContent = t ? "Изменить задачу" : "Новая задача";
+    $("fTitle").value = t ? t.title : "";
+    $("fCategory").value = t ? (t.category || "military") : ($("fCat").value || "military");
+    $("fPriority").value = t ? (t.priority || "normal") : "normal";
+    $("fDue").value = t ? effectiveDue(t) : "";
+    $("fNotes").value = t ? (t.notes || "") : "";
+    $("titleError").hidden = true;
+    $("dlgDelete").hidden = !t;
+    $("dueHint").textContent = t && t.auto
+      ? "Сейчас срок считается автоматически из ключевых дат. Измените дату, чтобы задать вручную, или оставьте как есть."
+      : "Пустое поле = срок уточняется.";
+    var dlg = $("taskDialog");
+    if(typeof dlg.showModal === "function") dlg.showModal();
+    else dlg.setAttribute("open","");
+    setTimeout(function(){ $("fTitle").focus(); }, 30);
+  }
+
+  function closeDialog(){
+    var dlg = $("taskDialog");
+    if(typeof dlg.close === "function") dlg.close();
+    else dlg.removeAttribute("open");
+    editingId = null;
+  }
+
+  function submitTask(e){
+    e.preventDefault();
+    var title = ($("fTitle").value || "").trim();
+    if(!title){
+      $("titleError").hidden = false;
+      $("fTitle").focus();
+      return;
+    }
+    var dueVal = $("fDue").value || "";
+    var t = editingId ? taskById(editingId) : null;
+    if(t){
+      t.title = title;
+      t.category = $("fCategory").value;
+      t.priority = $("fPriority").value;
+      t.notes = ($("fNotes").value || "").trim();
+      if(t.auto){
+        if(dueVal && dueVal === autoDate(t.auto)) { t.due = ""; }
+        else { t.auto = null; t.due = dueVal; }
+      } else {
+        t.due = dueVal;
+      }
+    } else {
+      var nt = {
+        id:"u" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+        title:title,
+        category:$("fCategory").value,
+        priority:$("fPriority").value,
+        due:dueVal,
+        notes:($("fNotes").value || "").trim(),
+        done:false,
+        deps:[]
+      };
+      state.tasks.push(nt);
+    }
+    save();
+    closeDialog();
+    renderAll();
+  }
+
+  function deleteTask(id){
+    var t = taskById(id);
+    if(!t) return;
+    if(!confirm("Удалить задачу «" + t.title + "»? Действие нельзя отменить.")) return;
+    state.tasks = state.tasks.filter(function(x){ return x.id !== id; });
+    state.tasks.forEach(function(x){
+      if(x.deps) x.deps = x.deps.filter(function(d){ return d !== id; });
+    });
+    save();
+    closeDialog();
+    renderAll();
+  }
+
+  // ---------- export / import ----------
+  function exportJSON(){
+    var data = {
+      app:"document_planner",
+      version:1,
+      exportedAt:new Date().toISOString(),
+      dates:state.dates,
+      settings:state.settings,
+      tasks:state.tasks
+    };
+    var blob = new Blob([JSON.stringify(data, null, 2)], { type:"application/json;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "document_planner_backup_" + todayISO() + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
+  }
+
+  function importJSON(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      try {
+        var obj = JSON.parse(String(reader.result));
+        if(!obj || typeof obj !== "object") throw new Error("bad root");
+        if(!Array.isArray(obj.tasks)) throw new Error("no tasks");
+        if(!confirm("Импорт заменит текущие задачи и даты (" + state.tasks.length + " задач) на " + obj.tasks.length + " задач из файла. Продолжить?")) return;
+
+        var tasks = obj.tasks.filter(function(t){
+          return t && typeof t === "object" && typeof t.title === "string" && t.title.trim();
+        }).map(function(t){
+          return {
+            id: typeof t.id === "string" && t.id ? t.id : "i" + Math.random().toString(36).slice(2,9),
+            title: String(t.title).slice(0,200),
+            category: CAT_LABEL[t.category] ? t.category : "military",
+            priority: PRIO[t.priority] ? t.priority : "normal",
+            due: typeof t.due === "string" && parseISO(t.due) ? t.due : "",
+            notes: typeof t.notes === "string" ? t.notes.slice(0,2000) : "",
+            done: !!t.done,
+            deps: Array.isArray(t.deps) ? t.deps.filter(function(x){ return typeof x === "string"; }) : [],
+            auto: typeof t.auto === "string" ? t.auto : null
+          };
+        });
+
+        var dates = {};
+        Object.keys(DEFAULT_DATES).forEach(function(k){
+          var v = obj.dates && typeof obj.dates[k] === "string" && parseISO(obj.dates[k]) ? obj.dates[k] : "";
+          dates[k] = v;
+        });
+
+        var settings = {};
+        Object.keys(DEFAULT_SETTINGS).forEach(function(k){
+          var v = obj.settings ? Number(obj.settings[k]) : NaN;
+          settings[k] = (isFinite(v) && v >= 0) ? v : DEFAULT_SETTINGS[k];
+        });
+
+        state = { dates:dates, settings:settings, tasks:tasks.length ? tasks : seedTasks() };
+        save();
+        renderAll();
+        alert("Импорт выполнен: " + state.tasks.length + " задач.");
+      } catch(err){
+        alert("Не удалось прочитать файл. Нужен JSON, созданный кнопкой «Экспорт JSON» на этой странице.");
+      }
+    };
+    reader.readAsText(file, "utf-8");
+  }
+
+  // ---------- reset ----------
+  function resetAll(){
+    if(!confirm("Вернуть ключевые даты и стартовый список из 16 задач? Текущие задачи и заметки будут удалены.")) return;
+    state = {
+      dates: { trip:DEFAULT_DATES.trip, passport:DEFAULT_DATES.passport, karta:DEFAULT_DATES.karta, license:DEFAULT_DATES.license },
+      settings: { reviewDays:DEFAULT_SETTINGS.reviewDays, bufferDays:DEFAULT_SETTINGS.bufferDays, passportLead:DEFAULT_SETTINGS.passportLead, licenseLead:DEFAULT_SETTINGS.licenseLead },
+      tasks: seedTasks()
+    };
+    save();
+    renderAll();
+  }
+
+  // ---------- render all ----------
+  function renderAll(){
+    renderToday();
+    renderDates();
+    renderWarnings();
+    renderTasks();
+    renderStorageWarn();
+    $("setReview").value = state.settings.reviewDays;
+    $("setBuffer").value = state.settings.bufferDays;
+    $("setPassportLead").value = state.settings.passportLead;
+    $("setLicenseLead").value = state.settings.licenseLead;
+  }
+
+  // ---------- wiring ----------
+  fillCategorySelect();
+
+  $("addBtn").addEventListener("click", function(){ openDialog(null); });
+  $("dlgClose").addEventListener("click", closeDialog);
+  $("dlgCancel").addEventListener("click", closeDialog);
+  $("taskForm").addEventListener("submit", submitTask);
+  $("dlgDelete").addEventListener("click", function(){ if(editingId) deleteTask(editingId); });
+
+  $("fCat").addEventListener("change", renderTasks);
+  $("fStatus").addEventListener("change", renderTasks);
+  $("fSearch").addEventListener("input", renderTasks);
+
+  $("taskList").addEventListener("change", function(e){
+    var el = e.target;
+    if(el && el.matches && el.matches("input[data-toggle]")){
+      var t = taskById(el.getAttribute("data-toggle"));
+      if(!t) return;
+      t.done = el.checked;
+      save();
+      renderAll();
+    }
+  });
+
+  $("taskList").addEventListener("click", function(e){
+    var btn = e.target.closest ? e.target.closest("button[data-act]") : null;
+    if(!btn) return;
+    var id = btn.getAttribute("data-id");
+    if(btn.getAttribute("data-act") === "edit") openDialog(id);
+    else if(btn.getAttribute("data-act") === "del") deleteTask(id);
+  });
+
+  $("exportBtn").addEventListener("click", exportJSON);
+  $("importBtn").addEventListener("click", function(){ $("importFile").click(); });
+  $("importFile").addEventListener("change", function(e){
+    var f = e.target.files && e.target.files[0];
+    if(f) importJSON(f);
+    e.target.value = "";
+  });
+  $("printBtn").addEventListener("click", function(){ window.print(); });
+
+  ["setReview","setBuffer","setPassportLead","setLicenseLead"].forEach(function(id){
+    $(id).addEventListener("change", function(){
+      var map = { setReview:"reviewDays", setBuffer:"bufferDays", setPassportLead:"passportLead", setLicenseLead:"licenseLead" };
+      var v = Number($(id).value);
+      if(!isFinite(v) || v < 0){ $(id).value = state.settings[map[id]]; return; }
+      state.settings[map[id]] = Math.round(v);
+      save();
+      renderAll();
+    });
+  });
+
+  var resetWrap = document.createElement("p");
+  resetWrap.className = "no-print";
+  resetWrap.style.margin = "14px 0 0";
+  resetWrap.innerHTML = '<button class="btn small danger" type="button" id="resetBtn">Сбросить к начальному списку</button>';
+  document.querySelector("details.settings").appendChild(resetWrap);
+  $("resetBtn").addEventListener("click", resetAll);
+
+  // keyboard: Esc closes handled by dialog natively; keep explicit too
+  $("taskDialog").addEventListener("cancel", function(e){
+    e.preventDefault();
+    closeDialog();
+  });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
